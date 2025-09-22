@@ -1,0 +1,162 @@
+---
+title: "Desafio 6"
+format: html
+editor: visual
+---
+
+```{r setup, include=FALSE}
+
+```
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+1 + 1
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r}
+library(DBI)
+library(RSQLite)
+library(dplyr)
+```
+
+```{r}
+path <- "dados"
+fname <- file.path(path, "disco.db")
+
+conn <- dbConnect(SQLite(), fname)
+conn
+```
+
+```{r}
+dbListTables(conn)
+```
+
+```{r}
+dbListFields(conn, "customers")
+```
+
+```{r}
+dbGetQuery(conn, "SELECT COUNT(*) as n_clientes FROM customers")
+```
+
+```{r}
+dbGetQuery(conn, "SELECT COUNT(DISTINCT Country) as n_paises FROM customers")
+```
+
+```{r}
+dbGetQuery(conn, "
+  SELECT Country, COUNT(*) as n_clientes
+  FROM customers
+  GROUP BY Country
+  ORDER BY n_clientes DESC
+")
+```
+
+```{r}
+dbGetQuery(conn, "
+  SELECT Country, COUNT(*) as n_clientes
+  FROM customers
+  GROUP BY Country
+  ORDER BY n_clientes DESC
+  LIMIT 5
+")
+```
+
+```{r}
+dbGetQuery(conn, "
+  SELECT DISTINCT Country
+  FROM customers
+  WHERE LENGTH(Country) = 6
+")
+```
+
+```{r}
+dbGetQuery(conn, "
+  SELECT DISTINCT t.Name as Musica
+  FROM invoices i
+  INNER JOIN customers c ON i.CustomerId = c.CustomerId
+  INNER JOIN invoice_items ii ON i.InvoiceId = ii.InvoiceId
+  INNER JOIN tracks t ON ii.TrackId = t.TrackId
+  WHERE c.Country = 'Brazil'
+  ORDER BY Musica
+  LIMIT 20
+")
+```
+
+```{r}
+#Album mais tocado por país
+
+dbGetQuery(conn, "
+  SELECT c.Country, al.Title, COUNT(*) as n_execucoes
+  FROM invoice_items ii
+  INNER JOIN invoices i ON ii.InvoiceId = i.InvoiceId
+  INNER JOIN customers c ON i.CustomerId = c.CustomerId
+  INNER JOIN tracks t ON ii.TrackId = t.TrackId
+  INNER JOIN albums al ON t.AlbumId = al.AlbumId
+  GROUP BY c.Country, al.Title
+  HAVING n_execucoes = (
+    SELECT MAX(sub.cnt)
+    FROM (
+      SELECT al2.Title, COUNT(*) as cnt
+      FROM invoice_items ii2
+      INNER JOIN invoices i2 ON ii2.InvoiceId = i2.InvoiceId
+      INNER JOIN customers c2 ON i2.CustomerId = c2.CustomerId
+      INNER JOIN tracks t2 ON ii2.TrackId = t2.TrackId
+      INNER JOIN albums al2 ON t2.AlbumId = al2.AlbumId
+      WHERE c2.Country = c.Country
+      GROUP BY al2.Title
+    ) sub
+  )
+  ORDER BY c.Country
+")
+```
+
+```{r}
+#Artista mais tocado por país
+
+dbGetQuery(conn, "
+  SELECT c.Country, ar.Name, COUNT(*) as n_execucoes
+  FROM invoice_items ii
+  INNER JOIN invoices i ON ii.InvoiceId = i.InvoiceId
+  INNER JOIN customers c ON i.CustomerId = c.CustomerId
+  INNER JOIN tracks t ON ii.TrackId = t.TrackId
+  INNER JOIN albums al ON t.AlbumId = al.AlbumId
+  INNER JOIN artists ar ON al.ArtistId = ar.ArtistId
+  GROUP BY c.Country, ar.Name
+  HAVING n_execucoes = (
+    SELECT MAX(sub.cnt)
+    FROM (
+      SELECT ar2.Name, COUNT(*) as cnt
+      FROM invoice_items ii2
+      INNER JOIN invoices i2 ON ii2.InvoiceId = i2.InvoiceId
+      INNER JOIN customers c2 ON i2.CustomerId = c2.CustomerId
+      INNER JOIN tracks t2 ON ii2.TrackId = t2.TrackId
+      INNER JOIN albums al2 ON t2.AlbumId = al2.AlbumId
+      INNER JOIN artists ar2 ON al2.ArtistId = ar2.ArtistId
+      WHERE c2.Country = c.Country
+      GROUP BY ar2.Name
+    ) sub
+  )
+  ORDER BY c.Country
+")
+```
+
+```{r}
+dbDisconnect(conn)
+```
