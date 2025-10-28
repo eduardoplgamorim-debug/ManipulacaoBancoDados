@@ -1,0 +1,118 @@
+---
+title: "Desafio 13"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+1 + 1
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r}
+library(DBI)
+library(RSQLite)
+library(readr)
+library(dplyr)
+```
+
+```{r}
+basics_path <- "Banco de Dados/title.basics0.tsv.gz"
+ratings_path <- "Banco de Dados/title.ratings.tsv.gz"
+principals_path <- "Banco de Dados/title.principals0.tsv.gz"
+
+basics <- read_tsv(basics_path, na = "\\N", show_col_types = FALSE)
+ratings <- read_tsv(ratings_path, na = "\\N", show_col_types = FALSE)
+principals <- read_tsv(principals_path, na = "\\N", show_col_types = FALSE)
+
+glimpse(basics)
+glimpse(ratings)
+glimpse(principals)
+```
+
+```{r}
+con <- dbConnect(RSQLite::SQLite(), "Banco de Dados/movies.sqlite3")
+
+dbWriteTable(con, "basics", basics, overwrite = TRUE)
+dbWriteTable(con, "ratings", ratings, overwrite = TRUE)
+dbWriteTable(con, "principals", principals, overwrite = TRUE)
+
+dbListTables(con)
+```
+
+```{r}
+query1 <- "
+SELECT 
+    b.primaryTitle AS titulo,
+    r.averageRating AS nota,
+    r.numVotes AS votos
+FROM ratings AS r
+JOIN basics AS b ON b.tconst = r.tconst
+WHERE b.titleType = 'movie'
+ORDER BY r.averageRating DESC, r.numVotes DESC
+LIMIT 5;
+"
+
+top5_filmes <- dbGetQuery(con, query1)
+top5_filmes
+```
+
+```{r}
+query2 <- "
+SELECT 
+    b.genres AS genero,
+    COUNT(*) AS quantidade
+FROM basics AS b
+JOIN ratings AS r ON b.tconst = r.tconst
+WHERE b.titleType = 'movie'
+  AND r.averageRating > 8
+  AND b.genres IS NOT NULL
+GROUP BY b.genres
+ORDER BY quantidade DESC
+LIMIT 1;
+"
+
+genero_mais_frequente <- dbGetQuery(con, query2)
+genero_mais_frequente
+```
+
+```{r}
+query3 <- "
+SELECT 
+    p.nconst AS pessoa_id,
+    p.category AS categoria,
+    COUNT(*) AS total_filmes
+FROM principals AS p
+JOIN basics AS b ON b.tconst = p.tconst
+JOIN ratings AS r ON b.tconst = r.tconst
+WHERE b.titleType = 'movie'
+  AND r.averageRating > 7.5
+  AND p.category IN ('actor', 'actress')
+GROUP BY p.nconst, p.category
+ORDER BY total_filmes DESC
+LIMIT 3;
+"
+
+top3_atores <- dbGetQuery(con, query3)
+top3_atores
+```
+
+```{r}
+dbDisconnect(con)
+```
